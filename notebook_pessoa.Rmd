@@ -1,0 +1,120 @@
+---
+title: "Fernando Pessoa"
+sutitle: "R Notebook"
+author: "Vasco Pereira"
+date: "`r Sys.Date()`"
+output: html_document
+params:
+  words: "Termos a pesquisar separados por vírgulas"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Bibliotecas necessárias
+library(dplyr)
+library(stringr)
+library(ggplot2)
+# Importar Raw Data
+raw_data = readRDS("rawData.RData")
+
+# Transformar Raw Data para doc/página
+
+testData = vector()
+for (i in 1:length(raw_data)) {
+  
+  testData[i] = raw_data[i] %>% unlist %>% paste(collapse = "")
+}
+
+rm(raw_data, i)
+
+```
+
+## Resumo
+
+Este notebook contem uma forma simples de fazer pesquisa e extração de textos com base em um ou mais termos em todos os textos publicados do escritor português Fernando Pessoa. Os textos foram extraídos do site [Arquivo Pessoa](http://arquivopessoa.net/) a 2022.05.29, e guardados como `rawData.RData` no [repositório](https://github.com/VascoRibeiroPereira/pessoa).
+
+```{r termos}
+# Termos a pesquisar
+
+readwords = function()# Get the project name
+{ 
+  params$words %>% str_split(",") %>% unlist()
+}
+words=readwords()
+
+# teste
+# words = c("destino", "Destino", "fado", "Fado", "destiny", "Destiny", "fate", "Fate")
+
+```
+
+Os termos selecionados para pesquisar foram:    
+`r words`   
+
+```{r segregar}
+
+full_vect = integer()
+for (i in words) {
+    
+    tmp_vect = grep(i, testData)
+    full_vect = c(tmp_vect, full_vect)
+    
+}
+
+full_vect = full_vect %>% unique()
+final_subset = testData[full_vect]
+
+```
+
+Extrairam-se `r length(final_subset)` textos de Fernando Pessoa que continham os termos pretendidos.
+
+```{r }
+
+heter = read.delim("heter.txt", header = FALSE)
+heter = heter[,1]
+
+heter_tbl = tibble()
+for (n in heter) {
+        
+        tmp_vect_heter = grep(n, final_subset)
+        tmp_tbl = tibble(texto = tmp_vect_heter, heteronimo = n)
+        heter_tbl = bind_rows(tmp_tbl, heter_tbl)
+        
+}
+
+heter_tbl = heter_tbl %>% 
+  arrange(texto) %>% 
+  group_by(heteronimo) %>% 
+  count() %>% 
+  arrange(n) %>% 
+  ungroup %>% 
+  mutate(cumulative = cumsum(n))
+
+heter_tbl %>% ggplot(aes(reorder(heteronimo, -n), n)) + 
+  geom_col(aes(y = n)) +
+  theme(axis.text.x = element_text(angle = 0, size = 8, colour = "black"),
+        axis.text.y = element_text(colour = "black"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        axis.line = element_line(colour = "grey"),
+        title = element_text(face = "bold", family = "Arial"),
+        plot.subtitle = element_text(face = "italic", family = "Arial"),
+        plot.caption = element_text(face = "italic", family = "Arial", colour = "grey"),
+        plot.background = element_rect(fill=NA),
+        legend.background = element_rect(fill=NA)) +
+  labs(x = "Heterónimo", 
+       y = "Ocorrências",
+       title = "Número de textos por heterónimo",
+       subtitle = paste("Baseado nos termos de pesquisa:", paste(words, collapse = ", ")),
+       caption = "Fonte: https://github.com/VascoRibeiroPereira/pessoa") +
+  coord_flip()
+
+```
+
+```{r exportar}
+
+# Exportação dos textos em formato txt
+
+writeLines(final_subset, "text.txt")
+
+```
